@@ -1,7 +1,9 @@
 #include "EasyBMP_1.06/EasyBMP.h"
 #include <iostream>
 #include <iomanip>
+#include <boost/filesystem.hpp>
 using namespace std;
+using namespace boost::filesystem;
 
 void printPixel(RGBApixel p){
 	cout << "(" << (int) p.Red 
@@ -27,6 +29,7 @@ RGBApixel getAveragePixel(BMP img){
 			b_sum += p.Blue;
 		}
 	}
+
 	int r_avg = r_sum / pixels;
 	int g_avg = g_sum / pixels;
 	int b_avg = b_sum / pixels;
@@ -38,36 +41,23 @@ RGBApixel getAveragePixel(BMP img){
 	return p;
 }
 
-bool cmpPixels(RGBApixel * p1, RGBApixel * p2){
-	return p1->Red == p2->Red && p1->Green == p2->Green && p1->Blue == p2->Blue;
-}
-
 int main(int argc, char * argv[]){
 
-	if(argc != 2){
-		cout << " Usage: ./proj <input_bmp>" << endl;
-		return 1;
-	}
-
-	BMP img;
-	img.ReadFromFile(argv[1]);
-	RGBApixel avg = getAveragePixel(img);
-	printPixel(avg);
-	// int height = img.TellHeight();
-	// int width = img.TellWidth();
-	// int pixels = height * width;
-
-	// // BMP output;
-	// // output.SetSize(height, width);
-
-	// int count = pixels;
-	// for(int x = 0; x < height - 1; x++){
-	// 	for(int y = 0; y < width - 1; y++){
-	// 		output.SetPixel(x,y,r);
-	// 	}
+	// if(argc != 4){
+	// 	cout << " Usage: ./proj <img lib path> <input_img> <output_img>" << endl;
+	// 	return 1;
 	// }
 
-	// output.WriteToFile("test_output.bmp");
+	BMP img;
+	path p(argv[1]);
+    for (auto i = directory_iterator(p); i != directory_iterator(); i++)
+    {
+    	BMP img;
+    	img.ReadFromFile(i->path().string().c_str());
+    	RGBApixel p = getAveragePixel(img);
+    	printPixel(p);
+    }
+
 	return 0;
 
 }
