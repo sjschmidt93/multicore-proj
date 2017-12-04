@@ -3,10 +3,11 @@
 #include <iomanip>
 #include <boost/filesystem.hpp>
 #include <math.h>
+#include <fstream>
+#include <sstream>
+#include <thread>
 using namespace std;
 using namespace boost::filesystem;
-
-const int block_size = 16;
 
 void printPixel(RGBApixel p){
 	cout << "(" << (int) p.Red 
@@ -62,30 +63,6 @@ int getRGBDistance(RGBApixel p1, RGBApixel p2){
 				 pow(p1.Blue - p2.Blue,2));
 }
 
-void createTestBMPs(){
-	BMP white, black;
-	white.SetSize(block_size, block_size);
-	black.SetSize(block_size, block_size);
-	RGBApixel black_p = getPixel(0,0,0);
-	RGBApixel white_p = getPixel(255,255,255);
-	RGBApixel other_p = getPixel(255,0,0);
-	int area = block_size * block_size;
-	for(int x = 0; x < block_size; x++){
-		for(int y = 0; y < block_size; y++){
-			if((x + y) % (area / 12) == 0){
-				white.SetPixel(x,y,other_p);
-				black.SetPixel(x,y,other_p);
-			}
-			else{
-				white.SetPixel(x,y,white_p);
-				black.SetPixel(x,y,black_p);
-			}
-		}
-	}
-	white.WriteToFile("white-test.bmp");
-	black.WriteToFile("black-test.bmp");
-}
-
 string getClosestMatch(vector<pair < string, RGBApixel > > v, RGBApixel p){
 	string ret = "";
 	double min = numeric_limits<double>::max();
@@ -100,47 +77,80 @@ string getClosestMatch(vector<pair < string, RGBApixel > > v, RGBApixel p){
 	return ret;
 }
 
+int block_size = 0, width = 0, height = 0;
+vector<pair < string, RGBApixel > > v;
+BMP input, output;
+
+void process(int min_y, int num_rows){
+
+	for(int x = 0; x < width; x += block_size){
+		for(int y = min_y; y < min_y+num_rows; y += block_size){
+			RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
+			string s = getClosestMatch(v, p);
+			BMP match;
+			match.ReadFromFile(s.c_str());
+			Rescale(match, 'H', block_size);
+			for(int xx = 0; xx < block_size; xx++)
+				for(int yy = 0; yy < block_size; yy++) 
+					output.SetPixel(x+xx,y+yy,match.GetPixel(xx, yy));
+		}
+	}
+
+}
+
+
 int main(int argc, char * argv[]){
 
-	// if(argc != 4){
-	// 	cout << " Usage: ./proj <img lib path> <input_img> <output_img>" << endl;
-	// 	return 1;
-	// }
+	if(argc != 4){
+		cout << " Usage: ./proj <input_img> <output_img> <num threads>" << endl;
+		return 1;
+	}
 
-	//createTestBMPs();
+	std::ifstream fp("library-averages.txt");
 
-	BMP img;
-	path p(argv[1]);
-	vector< pair< string, RGBApixel > > v;
-    for (auto i = directory_iterator(p); i != directory_iterator(); i++){
-    	BMP img;
-    	string path_str = i->path().string();
-    	img.ReadFromFile(path_str.c_str());
-    	RGBApixel p = getAveragePixel(img);
-    	v.push_back( make_pair(path_str, p) );
+	if(!fp.good()){
+		cout << "ERROR: No library file. Run ./avg_lib <image library path>" << endl;
+		return 1;
+	}
+
+	istringstream ss(argv[3]);
+	int num_threads;
+	if(!(ss >> num_threads)){
+		cout << "ERROR: Conversion of argument for num_threads unsuccessful" << endl;
+		return 1;
+	}
+	if(num_threads <= 0 || (num_threads & (num_threads -1))){
+		cout << "ERROR: Number of threads must be >= 1 and a power of 2" << endl;
+		return 1;
+	}
+
+    input.ReadFromFile(argv[1]);
+    width = input.TellWidth();
+    height = input.TellHeight();
+    if(width != height){
+    	cout << "ERROR: Input image must be a square." << endl;
+    	return 1;
     }
-
-    BMP input, output;
-    input.ReadFromFile(argv[2]);
-    int width = input.TellWidth();
-    int height = input.TellHeight();
-    output.SetSize(height,width);
-    int count = 0;
-    for(int x = 0; x < width; x += block_size){
-    	for(int y = 0; y < height; y += block_size){
-    		RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
-    		count++;
-    		string match = getClosestMatch(v, p);
-    		BMP img_match;
-    		img_match.ReadFromFile(match.c_str());
-    		for(int xx = 0; xx < block_size; xx++)
-    			for(int yy = 0; yy < block_size; yy++)
-    				output.SetPixel(x+xx,y+yy,img_match.GetPixel(xx, yy));
-    	}
+    if((width == 0) || (width & (width-1))){
+    	cout << "ERROR: Input image dimension must be a power of 2" << endl;
+    	return 1;
     }
-    output.WriteToFile("test-output.bmp");
-    //cout << "Count:" << count << endl;
-    //cout << "blocks:" << (height * width) / (block_size * block_size) << endl;
+    output.SetSize(width,height);
+
+	int r, g, b;
+	string path;
+	RGBApixel p;
+	while(fp >> path >> r >> g  >> b){
+		p.Red = r;
+		p.Green = g;
+		p.Blue = b;
+		v.push_back(make_pair(path,p));
+	}
+
+    block_size = height / 64; // arbitrary for now
+    process(0, height);
+    output.WriteToFile(argv[2]);
+
 	return 0;
 
 }

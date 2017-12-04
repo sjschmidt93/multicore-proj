@@ -52,7 +52,6 @@ int main(int argc, char * argv[]){
     	string path_str = i->path().string();
     	img.ReadFromFile(path_str.c_str());
     	RGBApixel p = getAveragePixel(img);
-    	cout << path_str << endl;
     	fp << path_str << " " << (int) p.Red << " " << (int) p.Green << " " << (int) p.Blue << endl;
     }
 	fp.close();
