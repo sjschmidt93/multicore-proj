@@ -81,10 +81,10 @@ int num_blocks = 0, block_size = 0, width = 0, height = 0;
 vector<pair < string, RGBApixel > > v;
 BMP input, output;
 
-void process(int min_y, int num_rows){
+void process(int min_y, int max_y){
 
 	for(int x = 0; x < width; x += block_size){
-		for(int y = min_y; y < num_rows; y += block_size){
+		for(int y = min_y; y < max_y; y += block_size){
 			RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
 			string s = getClosestMatch(v, p);
 			BMP match;
