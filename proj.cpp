@@ -77,14 +77,14 @@ string getClosestMatch(vector<pair < string, RGBApixel > > v, RGBApixel p){
 	return ret;
 }
 
-int block_size = 0, width = 0, height = 0;
+int num_blocks = 0, block_size = 0, width = 0, height = 0;
 vector<pair < string, RGBApixel > > v;
 BMP input, output;
 
 void process(int min_y, int num_rows){
 
 	for(int x = 0; x < width; x += block_size){
-		for(int y = min_y; y < min_y+num_rows; y += block_size){
+		for(int y = min_y; y < num_rows; y += block_size){
 			RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
 			string s = getClosestMatch(v, p);
 			BMP match;
@@ -101,6 +101,7 @@ void process(int min_y, int num_rows){
 
 int main(int argc, char * argv[]){
 
+	int start = clock();
 	if(argc != 4){
 		cout << " Usage: ./proj <input_img> <output_img> <num threads>" << endl;
 		return 1;
@@ -147,10 +148,16 @@ int main(int argc, char * argv[]){
 		v.push_back(make_pair(path,p));
 	}
 
-    block_size = height / 64; // arbitrary for now
-    process(0, height);
+	num_blocks = 64; // arbitrary for now
+    block_size = height / num_blocks;
+    int blocks_per_thread = num_blocks / num_threads;
+
+    vector<thread> threads;
+    for(int i =0; i < num_threads; i++)
+    	threads.emplace_back(process, i * blocks_per_thread * block_size, blocks_per_thread * block_size * (i+1));
+    for(auto & t: threads)
+    	t.join();
+
     output.WriteToFile(argv[2]);
-
-	return 0;
-
+    //cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
 }
