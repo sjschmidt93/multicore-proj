@@ -1,0 +1,1 @@
+g++ -std=c++11 avg_lib.cpp EasyBMP_1.06/EasyBMP.cpp -o avg_lib -lboost_system -lboost_filesystem
