@@ -24,7 +24,7 @@ RGBApixel getPixel(int r, int g, int b){
 	return p;
 }
 
-RGBApixel getAveragePixel(BMP img, int start_x, int start_y, int width, int height){
+RGBApixel getAveragePixel(RGBApixel ** arr, int start_x, int start_y, int width, int height){
 
 	int r_sum = 0;
 	int g_sum = 0;
@@ -33,7 +33,7 @@ RGBApixel getAveragePixel(BMP img, int start_x, int start_y, int width, int heig
 
 	for(int x = start_x; x < start_x+width; x++){
 		for(int y = start_y; y < start_y + height; y++){
-			RGBApixel p = img.GetPixel(x,y);
+			RGBApixel p = arr[x][y];
 			r_sum += p.Red;
 			g_sum += p.Green;
 			b_sum += p.Blue;
@@ -51,9 +51,6 @@ RGBApixel getAveragePixel(BMP img, int start_x, int start_y, int width, int heig
 	return p;
 }
 
-RGBApixel getAveragePixel(BMP img){
-	return getAveragePixel(img, 0, 0, img.TellWidth(), img.TellHeight());
-}
 
 /* may not be the best way to compare the color of two pixels but should
  be sufficient for now */
@@ -79,20 +76,23 @@ string getClosestMatch(vector<pair < string, RGBApixel > > v, RGBApixel p){
 
 int num_blocks = 0, block_size = 0, width = 0, height = 0;
 vector<pair < string, RGBApixel > > v;
-BMP input, output;
+BMP input;
+RGBApixel ** output_arr = NULL;
+RGBApixel ** input_arr = NULL;
 
 void process(int min_y, int max_y){
 
 	for(int x = 0; x < width; x += block_size){
 		for(int y = min_y; y < max_y; y += block_size){
-			RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
+			RGBApixel p = getAveragePixel(input_arr, x, y, block_size, block_size);
 			string s = getClosestMatch(v, p);
 			BMP match;
 			match.ReadFromFile(s.c_str());
 			Rescale(match, 'H', block_size);
+			RGBApixel match_arr[block_size][block_size];
 			for(int xx = 0; xx < block_size; xx++)
 				for(int yy = 0; yy < block_size; yy++) 
-					output.SetPixel(x+xx,y+yy,match.GetPixel(xx, yy));
+					output_arr[x+xx][y+yy] = match.GetPixel(xx,yy);
 		}
 	}
 
@@ -136,7 +136,17 @@ int main(int argc, char * argv[]){
     	cout << "ERROR: Input image dimension must be a power of 2" << endl;
     	return 1;
     }
-    output.SetSize(width,height);
+    int dim = width;
+    output_arr = new RGBApixel*[dim];
+    input_arr = new RGBApixel*[dim];
+    for(int i = 0; i < dim; i++){
+    	output_arr[i] = new RGBApixel[dim];
+    	input_arr[i] = new RGBApixel[dim];
+    }
+
+    for(int x = 0; x < dim; x++)
+    	for(int y = 0; y < dim; y++)
+    		input_arr[x][y] = input.GetPixel(x,y);
 
 	int r, g, b;
 	string path;
@@ -148,7 +158,7 @@ int main(int argc, char * argv[]){
 		v.push_back(make_pair(path,p));
 	}
 
-	num_blocks = 64; // arbitrary for now
+	num_blocks = 1024; // arbitrary for now
     block_size = height / num_blocks;
     int blocks_per_thread = num_blocks / num_threads;
 
@@ -158,6 +168,20 @@ int main(int argc, char * argv[]){
     for(auto & t: threads)
     	t.join();
 
+    BMP output;
+    output.SetSize(dim, dim);
+    for(int x = 0; x < dim; x++)
+    	for(int y = 0; y < dim; y++)
+    		output.SetPixel(x,y,output_arr[x][y]);
+
+    for(int i = 0; i < dim; i++){
+    	delete[] output_arr[i];
+    	delete[] input_arr[i];
+    }
+    delete[] output_arr;
+    delete[] input_arr;
+
     output.WriteToFile(argv[2]);
-    //cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
+
+    cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
 }
