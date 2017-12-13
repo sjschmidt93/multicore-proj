@@ -77,22 +77,60 @@ string getClosestMatch(vector<pair < string, RGBApixel > > v, RGBApixel p){
 	return ret;
 }
 
-int num_blocks = 0, block_size = 0, width = 0, height = 0;
+int num_blocks = 0, block_size = 0, width = 0, height = 0, dim = 0;
 vector<pair < string, RGBApixel > > v;
-BMP input, output;
+BMP input;
+RGBApixel ** in_arr = NULL;
+RGBApixel ** out_arr = NULL;
+
+RGBApixel ** bmp2arr(BMP img){
+	int d = img.TellWidth();
+	RGBApixel ** arr = new RGBApixel*[d];
+    for(int i = 0; i < d; i++)
+    	arr[i] = new RGBApixel[d];
+    for(int x = 0; x < d; x++)
+    	for(int y = 0; y < d; y++)
+    		arr[x][y] = img.GetPixel(x,y);
+    return arr;
+}
+
+BMP arr2bmp(RGBApixel ** arr, int d){
+	BMP img;
+	img.SetSize(d, d);
+	for(int x = 0; x < d; x++)
+		for(int y = 0; y < d; y++)
+			img.SetPixel(x,y,arr[x][y]);
+	return img;
+}
+
+void freeArray(RGBApixel ** arr, int d){
+	for(int i = 0; i < d; i++){
+		if(arr[i] != NULL){
+			delete[] arr[i];
+			arr[i] = NULL;
+		}
+	}
+	if(arr != NULL){
+		delete[] arr;
+		arr = NULL;
+	}
+}
 
 void process(int min_y, int max_y){
-
+	RGBApixel ** match_arr = NULL;
 	for(int x = 0; x < width; x += block_size){
 		for(int y = min_y; y < max_y; y += block_size){
+			//cout << "(" << x << "," << y << ")" << endl;
 			RGBApixel p = getAveragePixel(input, x, y, block_size, block_size);
 			string s = getClosestMatch(v, p);
 			BMP match;
 			match.ReadFromFile(s.c_str());
 			Rescale(match, 'H', block_size);
+			RGBApixel ** match_arr = bmp2arr(match);
 			for(int xx = 0; xx < block_size; xx++)
 				for(int yy = 0; yy < block_size; yy++) 
-					output.SetPixel(x+xx,y+yy,match.GetPixel(xx, yy));
+					out_arr[x+xx][y+yy] = match_arr[xx][yy];
+			//freeArray(match_arr, block_size);
 		}
 	}
 
@@ -128,6 +166,7 @@ int main(int argc, char * argv[]){
     input.ReadFromFile(argv[1]);
     width = input.TellWidth();
     height = input.TellHeight();
+
     if(width != height){
     	cout << "ERROR: Input image must be a square." << endl;
     	return 1;
@@ -136,7 +175,9 @@ int main(int argc, char * argv[]){
     	cout << "ERROR: Input image dimension must be a power of 2" << endl;
     	return 1;
     }
-    output.SetSize(width,height);
+
+    dim = width;
+    in_arr = bmp2arr(input);
 
 	int r, g, b;
 	string path;
@@ -148,9 +189,13 @@ int main(int argc, char * argv[]){
 		v.push_back(make_pair(path,p));
 	}
 
-	num_blocks = 64; // arbitrary for now
-    block_size = height / num_blocks;
+	num_blocks = 16; // arbitrary for now
+    block_size = dim / num_blocks;
     int blocks_per_thread = num_blocks / num_threads;
+
+    out_arr = new RGBApixel*[dim];
+    for(int i = 0; i < dim; i++)
+    	out_arr[i] = new RGBApixel[dim];
 
     vector<thread> threads;
     for(int i =0; i < num_threads; i++)
@@ -158,6 +203,12 @@ int main(int argc, char * argv[]){
     for(auto & t: threads)
     	t.join();
 
+    BMP output;
+    output = arr2bmp(out_arr, dim);
+
+    freeArray(in_arr, dim);
+    freeArray(out_arr, dim);
+
     output.WriteToFile(argv[2]);
-    //cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
+    cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
 }
