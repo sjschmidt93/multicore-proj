@@ -25,8 +25,6 @@ RGBApixel getPixel(int r, int g, int b){
 	return p;
 }
 
-/* may not be the best way to compare the color of two pixels but should
- be sufficient for now */
 int getRGBDistance(RGBApixel p1, RGBApixel p2){
 	return sqrt( pow(p1.Red - p2.Red, 2) + 
 				 pow(p1.Green - p2.Green, 2) + 
@@ -81,9 +79,12 @@ string getClosestMatch(RGBApixel p){
 }
 
 void process(int id, int min_y, int max_y){
-	//cout << "Thread " << id << " range: (" << min_y << "," << max_y << ")" << endl;
-	RGBApixel my_arr[block_size][max_y - min_y];
+	int rows = max_y - min_y;	
+	RGBApixel ** my_arr = new RGBApixel*[rows];
+	for(int i = 0; i < rows; i++)
+		my_arr[i] = new RGBApixel[width];
 	int start = clock();
+
 	for(int y = min_y; y < max_y; y += block_size){
 		for(int x = 0; x < width; x += block_size){
 			RGBApixel p = getAveragePixel(y, x, block_size, block_size);
@@ -94,17 +95,21 @@ void process(int id, int min_y, int max_y){
 			RGBApixel match_arr[block_size][block_size];
 			for(int xx = 0; xx < block_size; xx++)
 				for(int yy = 0; yy < block_size; yy++) 
-					output_arr[y+yy][x+xx] = match.GetPixel(yy, xx);
+					my_arr[yy+y-min_y][x+xx] = match.GetPixel(yy,xx);
 		}
 	}
-	//cout << "Thread " << id << " runtime: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
+	for(int y = 0; y < max_y - min_y; y++)
+		for(int x = 0; x < width; x++)
+			output_arr[y+min_y][x] = my_arr[y][x];
+	for(int i = 0; i < rows; i++)
+		delete[] my_arr[i];
+	delete[] my_arr;
 }
 
 
 int main(int argc, char * argv[]){
 
 	auto start = std::chrono::high_resolution_clock::now();
-	//int start = clock();
 	if(argc != 4){
 		cout << " Usage: ./proj <input_img> <output_img> <num threads>" << endl;
 		return 1;
@@ -147,15 +152,9 @@ int main(int argc, char * argv[]){
     	input_arr[i] = new RGBApixel[dim];
     }
 
-    for(int x = 0; x < dim; x++)
-    	for(int y = 0; y < dim; y++)
-    		input_arr[x][y] = input.GetPixel(x,y);
-
-    // cout << input_arr << endl;
-    // cout << &input_arr[0] << endl;
-    // cout << &input_arr[0][0] << endl;
-    // cout << &input_arr[1] << endl;
-    // cout << &input_arr[1] - &input_arr[0] << endl;
+    for(int y = 0; y < dim; y++)
+    	for(int x = 0; x < dim; x++)
+    		input_arr[y][x] = input.GetPixel(y,x);
 
 	int r, g, b;
 	string path;
@@ -167,9 +166,10 @@ int main(int argc, char * argv[]){
 		v.push_back(make_pair(path,p));
 	}
 
-	num_blocks = 128; // arbitrary for now
+	num_blocks = 256; // arbitrary for now
     block_size = height / num_blocks;
     int blocks_per_thread = num_blocks / num_threads;
+
 
     vector<thread> threads;
     for(int i =0; i < num_threads; i++)
@@ -194,5 +194,4 @@ int main(int argc, char * argv[]){
 
     auto end = std::chrono::high_resolution_clock::now();
     std::cout << std::chrono::duration<double, std::milli>(end - start).count() << " ms\n";
-    //cout << "Runtime for " << num_threads << " threads: " << (clock() - start) / double(CLOCKS_PER_SEC) << endl;
 }
